@@ -1,6 +1,7 @@
 const pm2 = require('pm2');
 const pmx = require('pmx'); // docs say pmx is deprecated, module:generate still uses it, I confuze
 const gelflog = require('gelf-pro');
+const os = require('os');
 
 const conf = pmx.initModule({
   widget: {
@@ -8,6 +9,10 @@ const conf = pmx.initModule({
     theme: ['#141A1F', '#222222', '#3ff', '#3ff'],
   },
 });
+
+const errEnabled = (typeof conf.errEnabled === 'undefined') ? true:conf.errEnabled;
+const outEnabled = (typeof conf.outEnabled === 'undefined') ? true:conf.outEnabled;
+
 
 gelflog.setConfig({
   adapterName: conf.gelfAdapterName,
@@ -32,14 +37,17 @@ pm2.Client.launchBus((err, bus) => {
 
   bus.on('log:out', (log) => {
     if (log.process.name === 'pm2-gelf-pro') return;
-
-    gelflog.info(log.data);
+    console.log(outEnabled);
+    if (!outEnabled) return;
+    const extra = {machine: os.hostname(), app: log.process.name};
+    gelflog.info(log.data, extra);
   });
 
   bus.on('log:err', (log) => {
     if (log.process.name === 'pm2-gelf-pro') return;
-
-    gelflog.error(log.data);
+    if (!errEnabled) return;
+    const extra = {machine: os.hostname, app: log.process.name};
+    gelflog.error(log.data, extra);
   });
 
   bus.on('close', () => {
